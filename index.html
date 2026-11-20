@@ -1,0 +1,2921 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>NO ESCAPE</title>
+  <meta name="description" content="A neon-noir HTML5 Canvas survival-horror maze game with procedural mazes, dynamic lighting, shifting walls, and an adaptive stalker AI." />
+  <meta property="og:title" content="NO ESCAPE" />
+  <meta property="og:description" content="A neon-noir HTML5 Canvas survival-horror maze game with procedural mazes, dynamic lighting, shifting walls, and an adaptive stalker AI." />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <style>
+    :root {
+      --bg-void: #0a0a0c;
+      --bg-surface: #121318;
+      --bg-elevated: #181a21;
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-strong: rgba(255, 255, 255, 0.16);
+      --text-primary: #f1f5f9;
+      --text-muted: #8b94a5;
+      --cyan: #00f0ff;
+      --cyan-dim: rgba(0, 240, 255, 0.16);
+      --crimson: #ff2a4b;
+      --crimson-dim: rgba(255, 42, 75, 0.18);
+      --amber: #f59e0b;
+      --emerald: #10b981;
+      --font-display: 'Arial Narrow', 'Bahnschrift', 'Impact', 'Helvetica Neue', sans-serif;
+      --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      --font-mono: ui-monospace, 'SFMono-Regular', 'Cascadia Mono', 'Roboto Mono', Menlo, Consolas, monospace;
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: var(--bg-void);
+      color: var(--text-primary);
+      font-family: var(--font-body);
+      -webkit-font-smoothing: antialiased;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+    }
+
+    #app {
+      position: relative;
+      width: 100vw;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-void);
+      overflow: hidden;
+    }
+
+    /* ---------------- HUD ---------------- */
+    #hud {
+      height: 56px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 0 20px;
+      background: #0d0e12;
+      border-bottom: 1px solid var(--border-subtle);
+      z-index: 20;
+    }
+
+    #hud.hidden {
+      display: none;
+    }
+
+    .hud-group {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      min-width: 0;
+    }
+
+    .hud-brand {
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: 1.25rem;
+      letter-spacing: 0.14em;
+      color: var(--text-primary);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .hud-metric {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
+      font-size: 0.8125rem;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .hud-label {
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      letter-spacing: 0.06em;
+    }
+
+    .hud-value {
+      color: var(--text-primary);
+      font-weight: 700;
+    }
+
+    .key-slots {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .key-diamond {
+      width: 11px;
+      height: 11px;
+      transform: rotate(45deg);
+      border: 1.5px solid rgba(0, 240, 255, 0.35);
+      background: rgba(0, 240, 255, 0.05);
+      transition: background 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+    }
+
+    .key-diamond.collected {
+      background: var(--cyan);
+      border-color: #ffffff;
+      box-shadow: 0 0 8px var(--cyan);
+    }
+
+    .stamina-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .stamina-track {
+      width: 96px;
+      height: 8px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .stamina-fill {
+      height: 100%;
+      width: 100%;
+      background: var(--cyan);
+      transform-origin: left center;
+      transition: background-color 150ms ease;
+    }
+
+    .stamina-fill.low {
+      background: var(--amber);
+    }
+
+    .stamina-fill.exhausted {
+      background: var(--crimson);
+    }
+
+    .shift-timer.warning {
+      color: var(--amber);
+    }
+
+    .shift-timer.imminent {
+      color: var(--crimson);
+    }
+
+    .threat-meter {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .threat-bars {
+      display: flex;
+      align-items: flex-end;
+      gap: 2px;
+      height: 14px;
+    }
+
+    .threat-bar {
+      width: 3px;
+      background: rgba(255, 255, 255, 0.16);
+      border-radius: 1px;
+      transition: background-color 120ms ease;
+    }
+
+    .threat-bar:nth-child(1) { height: 5px; }
+    .threat-bar:nth-child(2) { height: 8px; }
+    .threat-bar:nth-child(3) { height: 11px; }
+    .threat-bar:nth-child(4) { height: 14px; }
+
+    .threat-meter.clear { color: var(--text-muted); }
+    .threat-meter.near { color: var(--amber); }
+    .threat-meter.near .threat-bar.active { background: var(--amber); }
+    .threat-meter.chase { color: var(--crimson); }
+    .threat-meter.chase .threat-bar.active { background: var(--crimson); }
+
+    .hud-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .hud-btn {
+      height: 32px;
+      padding: 0 12px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+      border: 1px solid var(--border-subtle);
+      border-radius: 4px;
+      font-family: var(--font-body);
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 140ms ease, border-color 140ms ease;
+    }
+
+    .hud-btn:hover {
+      background: #222530;
+      border-color: var(--border-strong);
+    }
+
+    .hud-btn:focus-visible, .btn-primary:focus-visible, .btn-secondary:focus-visible, .seg-btn:focus-visible {
+      outline: 2px solid var(--cyan);
+      outline-offset: 2px;
+    }
+
+    /* ---------------- STAGE & CANVAS ---------------- */
+    #stage {
+      position: relative;
+      flex: 1;
+      width: 100%;
+      min-height: 0;
+      overflow: hidden;
+      background: var(--bg-void);
+    }
+
+    canvas#gameCanvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Dynamic Alert Banner (non-blocking) */
+    #toastBanner {
+      position: absolute;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-10px);
+      padding: 8px 18px;
+      background: rgba(12, 13, 18, 0.9);
+      border: 1px solid var(--border-strong);
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: 0.8125rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: var(--text-primary);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 180ms ease, transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
+      z-index: 15;
+      white-space: nowrap;
+    }
+
+    #toastBanner.visible {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    #toastBanner.danger {
+      border-color: rgba(255, 42, 75, 0.7);
+      color: #ff6b81;
+    }
+
+    #toastBanner.unlock {
+      border-color: rgba(0, 240, 255, 0.7);
+      color: var(--cyan);
+    }
+
+    /* ---------------- TOUCH CONTROLS ---------------- */
+    #touchControls {
+      position: absolute;
+      inset: auto 0 16px 0;
+      padding: 0 20px;
+      display: none;
+      align-items: flex-end;
+      justify-content: space-between;
+      pointer-events: none;
+      z-index: 18;
+    }
+
+    #touchControls.active {
+      display: flex;
+    }
+
+    .dpad {
+      display: grid;
+      grid-template-columns: repeat(3, 52px);
+      grid-template-rows: repeat(3, 52px);
+      gap: 6px;
+      pointer-events: auto;
+    }
+
+    .touch-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(18, 20, 27, 0.78);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 8px;
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      touch-action: none;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 90ms ease, border-color 90ms ease, transform 90ms ease;
+    }
+
+    .touch-btn.pressed {
+      background: rgba(0, 240, 255, 0.22);
+      border-color: var(--cyan);
+      transform: scale(0.95);
+    }
+
+    .dpad-up { grid-column: 2; grid-row: 1; }
+    .dpad-left { grid-column: 1; grid-row: 2; }
+    .dpad-right { grid-column: 3; grid-row: 2; }
+    .dpad-down { grid-column: 2; grid-row: 3; }
+
+    .sprint-pad {
+      pointer-events: auto;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 10px;
+    }
+
+    .touch-sprint-btn {
+      width: 84px;
+      height: 84px;
+      border-radius: 50%;
+      background: rgba(18, 20, 27, 0.82);
+      border: 2px solid rgba(0, 240, 255, 0.45);
+      color: var(--cyan);
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      touch-action: none;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 100ms ease, transform 100ms ease;
+    }
+
+    .touch-sprint-btn.pressed {
+      background: rgba(0, 240, 255, 0.28);
+      border-color: #ffffff;
+      color: #ffffff;
+      transform: scale(0.94);
+    }
+
+    /* ---------------- OVERLAY SCREENS ---------------- */
+    .overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: radial-gradient(circle at 50% 42%, rgba(18, 20, 28, 0.88) 0%, rgba(7, 7, 10, 0.96) 72%);
+      z-index: 30;
+      opacity: 1;
+      transition: opacity 200ms ease;
+    }
+
+    .overlay.hidden {
+      display: none;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .panel {
+      width: 100%;
+      max-width: 540px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 36px 32px;
+      box-shadow: 0 28px 80px rgba(0, 0, 0, 0.75);
+    }
+
+    .panel-kicker {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      letter-spacing: 0.14em;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+    }
+
+    .panel-kicker.danger {
+      color: var(--crimson);
+    }
+
+    .panel-kicker.cyan {
+      color: var(--cyan);
+    }
+
+    /* Glitch Title */
+    .glitch-title {
+      position: relative;
+      display: inline-block;
+      font-family: var(--font-display);
+      font-weight: 900;
+      font-size: clamp(2.75rem, 6vw, 4.25rem);
+      line-height: 0.95;
+      letter-spacing: 0.1em;
+      color: var(--text-primary);
+      margin-bottom: 16px;
+    }
+
+    .glitch-title::before,
+    .glitch-title::after {
+      content: attr(data-text);
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    .glitch-title::before {
+      color: var(--cyan);
+      z-index: -1;
+      animation: glitch-cyan 3.4s infinite steps(1);
+    }
+
+    .glitch-title::after {
+      color: var(--crimson);
+      z-index: -2;
+      animation: glitch-crimson 2.9s infinite steps(1);
+    }
+
+    @keyframes glitch-cyan {
+      0%, 88%, 100% { transform: translate(0, 0); clip-path: inset(0 0 0 0); opacity: 0; }
+      89% { transform: translate(-3px, 1px); clip-path: inset(15% 0 55% 0); opacity: 0.85; }
+      91% { transform: translate(2px, -1px); clip-path: inset(60% 0 12% 0); opacity: 0.7; }
+      93% { transform: translate(0, 0); opacity: 0; }
+    }
+
+    @keyframes glitch-crimson {
+      0%, 78%, 100% { transform: translate(0, 0); clip-path: inset(0 0 0 0); opacity: 0; }
+      79% { transform: translate(3px, -1px); clip-path: inset(40% 0 25% 0); opacity: 0.9; }
+      81% { transform: translate(-2px, 2px); clip-path: inset(8% 0 70% 0); opacity: 0.75; }
+      83% { transform: translate(0, 0); opacity: 0; }
+    }
+
+    .panel-lead {
+      font-size: 0.95rem;
+      line-height: 1.6;
+      color: var(--text-muted);
+      margin-bottom: 24px;
+    }
+
+    .rules-list {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px 20px;
+      padding: 18px 0;
+      margin-bottom: 24px;
+      border-top: 1px solid var(--border-subtle);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .rule-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .rule-head {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .rule-desc {
+      font-size: 0.78rem;
+      line-height: 1.45;
+      color: var(--text-muted);
+    }
+
+    .kbd {
+      display: inline-block;
+      padding: 1px 6px;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: var(--cyan);
+      background: rgba(0, 240, 255, 0.08);
+      border: 1px solid rgba(0, 240, 255, 0.25);
+      border-radius: 3px;
+    }
+
+    /* Segmented Difficulty Control */
+    .difficulty-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 26px;
+    }
+
+    .difficulty-label {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .segmented {
+      display: inline-flex;
+      padding: 3px;
+      background: var(--bg-void);
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      gap: 4px;
+    }
+
+    .seg-btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 4px;
+      background: transparent;
+      color: var(--text-muted);
+      font-family: var(--font-body);
+      font-size: 0.8125rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 140ms ease, color 140ms ease;
+    }
+
+    .seg-btn[aria-pressed="true"] {
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+    }
+
+    .seg-btn[data-diff="nightmare"][aria-pressed="true"] {
+      background: var(--crimson-dim);
+      color: #ff6b81;
+    }
+
+    .actions-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn-primary {
+      flex: 1;
+      height: 46px;
+      padding: 0 24px;
+      border: none;
+      border-radius: 5px;
+      background: var(--crimson);
+      color: #ffffff;
+      font-family: var(--font-body);
+      font-size: 0.9375rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 150ms ease, transform 120ms ease;
+    }
+
+    .btn-primary:hover {
+      background: #ff4260;
+    }
+
+    .btn-primary:active {
+      transform: scale(0.985);
+    }
+
+    .btn-primary.cyan-cta {
+      background: var(--cyan);
+      color: #05080d;
+    }
+
+    .btn-primary.cyan-cta:hover {
+      background: #4df5ff;
+    }
+
+    .btn-secondary {
+      height: 46px;
+      padding: 0 20px;
+      border: 1px solid var(--border-strong);
+      border-radius: 5px;
+      background: transparent;
+      color: var(--text-primary);
+      font-family: var(--font-body);
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 140ms ease;
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    /* End Screen Stats */
+    .end-title {
+      font-family: var(--font-display);
+      font-weight: 900;
+      font-size: clamp(1.9rem, 4.5vw, 2.75rem);
+      line-height: 1.05;
+      letter-spacing: 0.06em;
+      margin-bottom: 10px;
+      text-wrap: balance;
+    }
+
+    .end-title.caught {
+      color: var(--crimson);
+    }
+
+    .end-title.cleared {
+      color: var(--cyan);
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      padding: 20px 0;
+      margin: 20px 0 26px;
+      border-top: 1px solid var(--border-subtle);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .stat-cell {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .stat-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .stat-num {
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    @media (max-width: 760px) {
+      #hud {
+        height: 48px;
+        padding: 0 12px;
+        gap: 8px;
+      }
+
+      .hud-brand {
+        display: none;
+      }
+
+      .hud-group {
+        gap: 10px;
+      }
+
+      .stamina-track {
+        width: 56px;
+      }
+
+      .hud-btn span.btn-text {
+        display: none;
+      }
+
+      .panel {
+        padding: 24px 20px;
+      }
+
+      .rules-list {
+        grid-template-columns: 1fr;
+      }
+
+      .stats-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .glitch-title::before,
+      .glitch-title::after {
+        animation: none;
+        display: none;
+      }
+      * {
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <!-- Top HUD -->
+    <header id="hud" class="hidden" aria-label="Game Status">
+      <div class="hud-group">
+        <div class="hud-brand">NO ESCAPE</div>
+        <div class="hud-metric">
+          <span class="hud-label">SECTOR</span>
+          <span id="hudSector" class="hud-value">01</span>
+        </div>
+        <div class="hud-metric">
+          <span class="hud-label">KEYS</span>
+          <div class="key-slots" aria-label="Keys collected">
+            <span class="key-diamond" id="keySlot0"></span>
+            <span class="key-diamond" id="keySlot1"></span>
+            <span class="key-diamond" id="keySlot2"></span>
+          </div>
+          <span id="hudKeys" class="hud-value">0/3</span>
+        </div>
+        <div class="hud-metric stamina-wrap">
+          <span class="hud-label">STAMINA</span>
+          <div class="stamina-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" id="staminaBar">
+            <div class="stamina-fill" id="staminaFill"></div>
+          </div>
+          <span id="staminaState" class="hud-value">MAX</span>
+        </div>
+        <div class="hud-metric">
+          <span class="hud-label">SHIFT</span>
+          <span id="hudShift" class="hud-value shift-timer">15.0s</span>
+        </div>
+      </div>
+
+      <div class="hud-group">
+        <div id="threatMeter" class="threat-meter clear">
+          <div class="threat-bars" aria-hidden="true">
+            <span class="threat-bar"></span>
+            <span class="threat-bar"></span>
+            <span class="threat-bar"></span>
+            <span class="threat-bar"></span>
+          </div>
+          <span id="threatText">CLEAR</span>
+        </div>
+
+        <div class="hud-actions">
+          <button id="touchToggleBtn" class="hud-btn" type="button" title="Toggle on-screen touch controls">Touch Pad</button>
+          <button id="muteBtn" class="hud-btn" type="button" aria-pressed="false">Sound On</button>
+          <button id="pauseBtn" class="hud-btn" type="button">Pause</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Playable Viewport -->
+    <main id="stage">
+      <canvas id="gameCanvas"></canvas>
+
+      <div id="toastBanner" role="status" aria-live="polite"></div>
+
+      <!-- On-Screen Touch / Click Controls -->
+      <div id="touchControls" aria-label="Touch directional controls">
+        <div class="dpad">
+          <button class="touch-btn dpad-up" type="button" data-dir="up" aria-label="Move Up">▲</button>
+          <button class="touch-btn dpad-left" type="button" data-dir="left" aria-label="Move Left">◀</button>
+          <button class="touch-btn dpad-right" type="button" data-dir="right" aria-label="Move Right">▶</button>
+          <button class="touch-btn dpad-down" type="button" data-dir="down" aria-label="Move Down">▼</button>
+        </div>
+        <div class="sprint-pad">
+          <button class="touch-sprint-btn" type="button" id="touchSprintBtn" aria-label="Hold to Sprint">SPRINT</button>
+        </div>
+      </div>
+
+      <!-- Title Screen -->
+      <section id="titleScreen" class="overlay" aria-label="Title Menu">
+        <div class="panel">
+          <div class="panel-kicker danger">SUBTERRANEAN LOCKDOWN</div>
+          <h1 class="glitch-title" data-text="NO ESCAPE">NO ESCAPE</h1>
+          <p class="panel-lead">
+            The corridors rearrange every 15 seconds. Recover all three key fragments in the dark to unlock the exit before The Warden hunts you down.
+          </p>
+
+          <div class="rules-list">
+            <div class="rule-item">
+              <div class="rule-head">Move &amp; Sprint</div>
+              <div class="rule-desc"><span class="kbd">WASD</span> or <span class="kbd">Arrows</span> for fast movement. Hold <span class="kbd">Shift</span> for unlimited sprint — noise still attracts The Warden.</div>
+            </div>
+            <div class="rule-item">
+              <div class="rule-head">The Warden</div>
+              <div class="rule-desc">Patrols in total darkness. Break line of sight and stay quiet to survive a chase.</div>
+            </div>
+            <div class="rule-item">
+              <div class="rule-head">Shifting Walls</div>
+              <div class="rule-desc">Every 15s, hazard alarms trigger and walls slam shut or open new routes.</div>
+            </div>
+            <div class="rule-item">
+              <div class="rule-head">Key Fragments</div>
+              <div class="rule-desc">Collect 3 cyan fragments to unlock the crimson exit gate.</div>
+            </div>
+          </div>
+
+          <div class="difficulty-row">
+            <span class="difficulty-label">Difficulty</span>
+            <div class="segmented" role="group" aria-label="Select difficulty">
+              <button class="seg-btn" type="button" data-diff="normal" aria-pressed="true">Normal</button>
+              <button class="seg-btn" type="button" data-diff="nightmare" aria-pressed="false">Nightmare</button>
+            </div>
+          </div>
+
+          <div class="actions-row">
+            <button id="playBtn" class="btn-primary" type="button">PLAY</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Pause Overlay -->
+      <section id="pauseScreen" class="overlay hidden" aria-label="Paused">
+        <div class="panel">
+          <div class="panel-kicker">PAUSED</div>
+          <h2 class="end-title">HOLD POSITION</h2>
+          <p class="panel-lead">The Warden waits in the dark. Resume when ready.</p>
+          <div class="actions-row">
+            <button id="resumeBtn" class="btn-primary cyan-cta" type="button">RESUME</button>
+            <button id="quitToMenuBtn" class="btn-secondary" type="button">Main Menu</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Sector Cleared Screen -->
+      <section id="winScreen" class="overlay hidden" aria-label="Sector Cleared">
+        <div class="panel">
+          <div class="panel-kicker cyan">EXIT BREACHED</div>
+          <h2 class="end-title cleared">SECTOR CLEARED</h2>
+          <p class="panel-lead">You escaped this sector, but the deeper floors are larger and The Warden is faster.</p>
+          <div class="stats-grid">
+            <div class="stat-cell">
+              <span class="stat-label">Sector Time</span>
+              <span id="winSectorTime" class="stat-num">00:00</span>
+            </div>
+            <div class="stat-cell">
+              <span class="stat-label">Total Survived</span>
+              <span id="winTotalTime" class="stat-num">00:00</span>
+            </div>
+            <div class="stat-cell">
+              <span class="stat-label">Next Sector</span>
+              <span id="winNextSector" class="stat-num">02</span>
+            </div>
+          </div>
+          <div class="actions-row">
+            <button id="nextSectorBtn" class="btn-primary cyan-cta" type="button">ENTER NEXT SECTOR</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Game Over Screen -->
+      <section id="gameOverScreen" class="overlay hidden" aria-label="Game Over">
+        <div class="panel">
+          <div class="panel-kicker danger">TERMINAL INTERCEPT</div>
+          <h2 class="end-title caught">CAUGHT — THERE WAS NO ESCAPE</h2>
+          <p class="panel-lead">The Warden tracked you down in the dark.</p>
+          <div class="stats-grid">
+            <div class="stat-cell">
+              <span class="stat-label">Survival Time</span>
+              <span id="loseTotalTime" class="stat-num">00:00</span>
+            </div>
+            <div class="stat-cell">
+              <span class="stat-label">Sectors Cleared</span>
+              <span id="loseSectors" class="stat-num">0</span>
+            </div>
+            <div class="stat-cell">
+              <span class="stat-label">Keys Recovered</span>
+              <span id="loseKeys" class="stat-num">0/3</span>
+            </div>
+          </div>
+          <div class="actions-row">
+            <button id="retryBtn" class="btn-primary" type="button">TRY AGAIN</button>
+            <button id="gameOverMenuBtn" class="btn-secondary" type="button">Main Menu</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    (() => {
+      'use strict';
+
+      /* =========================================================================
+         1. CONFIGURATION & DIFFICULTY PRESETS
+         ========================================================================= */
+      const TILE_SIZE = 48;
+      const WALL_SHIFT_INTERVAL = 15.0;
+      const WALL_WARNING_DURATION = 2.6;
+      const KEYS_REQUIRED = 3;
+
+      const DIFFICULTIES = {
+        normal: {
+          label: 'Normal',
+          playerWalkSpeed: 240,
+          playerSprintSpeed: 380,
+          staminaDrainRate: 0,
+          staminaRegenRate: 100,
+          flashlightRadius: 460,
+          ambientRadius: 230,
+          flashlightSpread: 0.95,
+          ambientDarkness: 0.42,
+          stalkerPatrolSpeed: 112,
+          stalkerInvestigateSpeed: 156,
+          stalkerChaseSpeed: 214,
+          stalkerSightRange: 300,
+          stalkerHearingRange: 250,
+          shiftWallCount: 4
+        },
+        nightmare: {
+          label: 'Nightmare',
+          playerWalkSpeed: 240,
+          playerSprintSpeed: 375,
+          staminaDrainRate: 0,
+          staminaRegenRate: 100,
+          flashlightRadius: 400,
+          ambientRadius: 195,
+          flashlightSpread: 0.85,
+          ambientDarkness: 0.52,
+          stalkerPatrolSpeed: 136,
+          stalkerInvestigateSpeed: 182,
+          stalkerChaseSpeed: 244,
+          stalkerSightRange: 350,
+          stalkerHearingRange: 310,
+          shiftWallCount: 6
+        }
+      };
+
+      const prefersReducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      /* =========================================================================
+         2. PROCEDURAL WEB AUDIO SYNTHESIZER
+         ========================================================================= */
+      class SoundEngine {
+        constructor() {
+          this.ctx = null;
+          this.muted = false;
+          this.masterGain = null;
+          this.noiseBuffer = null;
+        }
+
+        init() {
+          if (this.ctx) {
+            if (this.ctx.state === 'suspended') {
+              this.ctx.resume().catch(() => {});
+            }
+            return;
+          }
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (!AudioCtx) return;
+          this.ctx = new AudioCtx();
+          this.masterGain = this.ctx.createGain();
+          this.masterGain.gain.value = this.muted ? 0 : 0.72;
+          this.masterGain.connect(this.ctx.destination);
+
+          // Pre-bake 1.5s white noise buffer for footsteps & hydraulic slams
+          const sampleRate = this.ctx.sampleRate;
+          const length = Math.floor(sampleRate * 1.5);
+          this.noiseBuffer = this.ctx.createBuffer(1, length, sampleRate);
+          const data = this.noiseBuffer.getChannelData(0);
+          for (let i = 0; i < length; i++) {
+            data[i] = Math.random() * 2 - 1;
+          }
+        }
+
+        setMuted(muted) {
+          this.muted = muted;
+          if (this.masterGain && this.ctx) {
+            this.masterGain.gain.setTargetAtTime(muted ? 0 : 0.72, this.ctx.currentTime, 0.03);
+          }
+        }
+
+        playFootstep(sprinting) {
+          if (!this.ctx || this.muted) return;
+          const now = this.ctx.currentTime;
+
+          // Filtered noise click
+          const src = this.ctx.createBufferSource();
+          src.buffer = this.noiseBuffer;
+          const filter = this.ctx.createBiquadFilter();
+          filter.type = 'bandpass';
+          filter.frequency.value = sprinting ? 920 + Math.random() * 220 : 620 + Math.random() * 140;
+          filter.Q.value = 1.8;
+
+          const gain = this.ctx.createGain();
+          const vol = sprinting ? 0.14 : 0.06;
+          gain.gain.setValueAtTime(vol, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.075);
+
+          src.connect(filter);
+          filter.connect(gain);
+          gain.connect(this.masterGain);
+          src.start(now, Math.random() * 0.5, 0.08);
+
+          // Low heel thud
+          const osc = this.ctx.createOscillator();
+          const thudGain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(sprinting ? 95 : 70, now);
+          osc.frequency.exponentialRampToValueAtTime(34, now + 0.06);
+          thudGain.gain.setValueAtTime(sprinting ? 0.12 : 0.05, now);
+          thudGain.gain.exponentialRampToValueAtTime(0.001, now + 0.065);
+
+          osc.connect(thudGain);
+          thudGain.connect(this.masterGain);
+          osc.start(now);
+          osc.stop(now + 0.07);
+        }
+
+        playHeartbeat(intensity) {
+          if (!this.ctx || this.muted) return;
+          const now = this.ctx.currentTime;
+          const vol = 0.12 + intensity * 0.24;
+
+          const pulse = (offset, freqStart, peakVol) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freqStart, now + offset);
+            osc.frequency.exponentialRampToValueAtTime(28, now + offset + 0.16);
+
+            gain.gain.setValueAtTime(0.001, now + offset);
+            gain.gain.linearRampToValueAtTime(peakVol, now + offset + 0.015);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.18);
+
+            osc.connect(gain);
+            gain.connect(this.masterGain);
+            osc.start(now + offset);
+            osc.stop(now + offset + 0.2);
+          };
+
+          // Lub-dub
+          pulse(0, 68 + intensity * 18, vol);
+          pulse(0.14, 58 + intensity * 14, vol * 0.72);
+        }
+
+        playShiftWarning() {
+          if (!this.ctx || this.muted) return;
+          const now = this.ctx.currentTime;
+          const tones = [520, 390];
+          tones.forEach((freq, idx) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, now + idx * 0.16);
+            gain.gain.setValueAtTime(0.001, now + idx * 0.16);
+            gain.gain.linearRampToValueAtTime(0.12, now + idx * 0.16 + 0.015);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.16 + 0.15);
+            osc.connect(gain);
+            gain.connect(this.masterGain);
+            osc.start(now + idx * 0.16);
+            osc.stop(now + idx * 0.16 + 0.16);
+          });
+        }
+
+        playWallShiftSlam() {
+          if (!this.ctx || this.muted) return;
+          const now = this.ctx.currentTime;
+
+          // Deep stone rumble
+          const osc = this.ctx.createOscillator();
+          const oscGain = this.ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(86, now);
+          osc.frequency.exponentialRampToValueAtTime(26, now + 0.45);
+
+          const lp = this.ctx.createBiquadFilter();
+          lp.type = 'lowpass';
+          lp.frequency.value = 180;
+
+          oscGain.gain.setValueAtTime(0.28, now);
+          oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+
+          osc.connect(lp);
+          lp.connect(oscGain);
+          oscGain.connect(this.masterGain);
+          osc.start(now);
+          osc.stop(now + 0.52);
+
+          // Metallic grind noise
+          const noise = this.ctx.createBufferSource();
+          noise.buffer = this.noiseBuffer;
+          const bp = this.ctx.createBiquadFilter();
+          bp.type = 'lowpass';
+          bp.frequency.setValueAtTime(600, now);
+          bp.frequency.exponentialRampToValueAtTime(120, now + 0.35);
+
+          const nGain = this.ctx.createGain();
+          nGain.gain.setValueAtTime(0.22, now);
+          nGain.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
+
+          noise.connect(bp);
+          bp.connect(nGain);
+          nGain.connect(this.masterGain);
+          noise.start(now, 0, 0.4);
+        }
+
+        playKeyPickup(keyIndex) {
+          if (!this.ctx || this.muted) return;
+          const now = this.ctx.currentTime;
+          const base = 440 + keyIndex * 110;
+          const notes = [base, base * 1.25, base * 1.5, base * 2];
+
+          notes.forEach((freq, i) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, now + i * 0.055);
+            gain.gain.setValueAtTime(0.001, now + i * 0.055);
+            gain.gain.linearRampToValueAtTime(0.14, now + i * 0.055 + 0.012);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.055 + 0.28);
+            osc.connect(gain);
+            gain.connect(this.masterGain);
+            osc.start(now + i * 0.055);
+            osc.stop(now + i * 0.055 + 0.3);
+          });
+        }
+
+        playExitUnlocked() {
+          if (!this.ctx || this.muted) return;
+          const now = this.ctx.currentTime;
+          [261.63, 329.63, 392.0, 523.25].forEach((freq) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, now);
+            gain.gain.setValueAtTime(0.001, now);
+            gain.gain.linearRampToValueAtTime(0.1, now + 0.04);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.75);
+            osc.connect(gain);
+            gain.connect(this.masterGain);
+            osc.start(now);
+            osc.stop(now + 0.8);
+          });
+        }
+
+        playChaseAlert() {
+          if (!this.ctx || this.muted) return;
+          const now = this.ctx.currentTime;
+          [220, 233.08].forEach((freq) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(freq, now);
+            osc.frequency.linearRampToValueAtTime(freq * 1.4, now + 0.14);
+
+            const filter = this.ctx.createBiquadFilter();
+            filter.type = 'bandpass';
+            filter.frequency.value = 950;
+
+            gain.gain.setValueAtTime(0.001, now);
+            gain.gain.linearRampToValueAtTime(0.16, now + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.34);
+
+            osc.connect(filter);
+            filter.connect(gain);
+            gain.connect(this.masterGain);
+            osc.start(now);
+            osc.stop(now + 0.36);
+          });
+        }
+
+        playWinStinger() {
+          if (!this.ctx || this.muted) return;
+          const now = this.ctx.currentTime;
+          const notes = [392.0, 493.88, 587.33, 783.99, 987.77];
+          notes.forEach((freq, i) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, now + i * 0.075);
+            gain.gain.setValueAtTime(0.001, now + i * 0.075);
+            gain.gain.linearRampToValueAtTime(0.14, now + i * 0.075 + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.075 + 0.55);
+            osc.connect(gain);
+            gain.connect(this.masterGain);
+            osc.start(now + i * 0.075);
+            osc.stop(now + i * 0.075 + 0.6);
+          });
+        }
+
+        playGameOverStinger() {
+          if (!this.ctx || this.muted) return;
+          const now = this.ctx.currentTime;
+
+          // Heavy sub impact + descending dissonance
+          [146.83, 138.59, 98.0].forEach((freq, i) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(freq, now + i * 0.12);
+            osc.frequency.exponentialRampToValueAtTime(freq * 0.42, now + i * 0.12 + 0.55);
+
+            const lp = this.ctx.createBiquadFilter();
+            lp.type = 'lowpass';
+            lp.frequency.setValueAtTime(1100, now + i * 0.12);
+            lp.frequency.exponentialRampToValueAtTime(140, now + i * 0.12 + 0.55);
+
+            gain.gain.setValueAtTime(0.22, now + i * 0.12);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.12 + 0.6);
+
+            osc.connect(lp);
+            lp.connect(gain);
+            gain.connect(this.masterGain);
+            osc.start(now + i * 0.12);
+            osc.stop(now + i * 0.12 + 0.62);
+          });
+        }
+      }
+
+      /* =========================================================================
+         3. MAZE GENERATION & GRAPH UTILITIES (BFS + BRAIDING)
+         ========================================================================= */
+      function shuffle(arr) {
+        for (let i = arr.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          const tmp = arr[i];
+          arr[i] = arr[j];
+          arr[j] = tmp;
+        }
+        return arr;
+      }
+
+      function generateMaze(cols, rows) {
+        // Ensure odd dimensions
+        const w = cols % 2 === 0 ? cols + 1 : cols;
+        const h = rows % 2 === 0 ? rows + 1 : rows;
+
+        // 1 = wall, 0 = floor
+        const grid = Array.from({ length: h }, () => new Uint8Array(w).fill(1));
+
+        // Iterative Recursive Backtracker
+        const startX = 1;
+        const startY = 1;
+        grid[startY][startX] = 0;
+        const stack = [[startX, startY]];
+        const dirs = [
+          [0, -2],
+          [2, 0],
+          [0, 2],
+          [-2, 0]
+        ];
+
+        while (stack.length > 0) {
+          const [cx, cy] = stack[stack.length - 1];
+          const shuffled = shuffle(dirs.slice());
+          let carved = false;
+
+          for (const [dx, dy] of shuffled) {
+            const nx = cx + dx;
+            const ny = cy + dy;
+            if (nx > 0 && nx < w - 1 && ny > 0 && ny < h - 1 && grid[ny][nx] === 1) {
+              grid[cy + dy / 2][cx + dx / 2] = 0;
+              grid[ny][nx] = 0;
+              stack.push([nx, ny]);
+              carved = true;
+              break;
+            }
+          }
+
+          if (!carved) {
+            stack.pop();
+          }
+        }
+
+        // Add tactical loops (braiding) to avoid single-file dead-end traps
+        const wallCandidates = [];
+        for (let y = 1; y < h - 1; y++) {
+          for (let x = 1; x < w - 1; x++) {
+            if (grid[y][x] === 1) {
+              const horizOpen = grid[y][x - 1] === 0 && grid[y][x + 1] === 0 && grid[y - 1][x] === 1 && grid[y + 1][x] === 1;
+              const vertOpen = grid[y - 1][x] === 0 && grid[y + 1][x] === 0 && grid[y][x - 1] === 1 && grid[y][x + 1] === 1;
+              if (horizOpen || vertOpen) {
+                wallCandidates.push([x, y]);
+              }
+            }
+          }
+        }
+
+        shuffle(wallCandidates);
+        const loopCount = Math.floor(wallCandidates.length * 0.22);
+        for (let i = 0; i < loopCount; i++) {
+          const [wx, wy] = wallCandidates[i];
+          grid[wy][wx] = 0;
+        }
+
+        return { grid, w, h };
+      }
+
+      function computeBFS(grid, w, h, startGX, startGY) {
+        const dist = Array.from({ length: h }, () => new Int32Array(w).fill(-1));
+        const parent = Array.from({ length: h }, () => new Int32Array(w).fill(-1));
+        if (grid[startGY]?.[startGX] !== 0) return { dist, parent };
+
+        const queue = [startGY * w + startGX];
+        dist[startGY][startGX] = 0;
+        let head = 0;
+        const nDirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+
+        while (head < queue.length) {
+          const idx = queue[head++];
+          const cx = idx % w;
+          const cy = (idx / w) | 0;
+          const cd = dist[cy][cx];
+
+          for (const [dx, dy] of nDirs) {
+            const nx = cx + dx;
+            const ny = cy + dy;
+            if (nx >= 0 && nx < w && ny >= 0 && ny < h && grid[ny][nx] === 0 && dist[ny][nx] === -1) {
+              dist[ny][nx] = cd + 1;
+              parent[ny][nx] = idx;
+              queue.push(ny * w + nx);
+            }
+          }
+        }
+        return { dist, parent };
+      }
+
+      function reconstructPath(parent, w, startGX, startGY, targetGX, targetGY) {
+        const path = [];
+        let cur = targetGY * w + targetGX;
+        const startIdx = startGY * w + startGX;
+        if (cur === startIdx) return path;
+
+        let safety = 0;
+        while (cur !== -1 && cur !== startIdx && safety < 2000) {
+          path.push({ gx: cur % w, gy: (cur / w) | 0 });
+          cur = parent[ (cur / w) | 0 ][ cur % w ];
+          safety++;
+        }
+        path.reverse();
+        return path;
+      }
+
+      /* =========================================================================
+         4. MAIN GAME ENGINE
+         ========================================================================= */
+      const canvas = document.getElementById('gameCanvas');
+      const ctx = canvas.getContext('2d');
+      const lightCanvas = document.createElement('canvas');
+      const lightCtx = lightCanvas.getContext('2d');
+
+      // Pre-rendered procedural dark stone wall tile texture
+      const wallTexCanvas = document.createElement('canvas');
+      wallTexCanvas.width = TILE_SIZE;
+      wallTexCanvas.height = TILE_SIZE;
+      const wtx = wallTexCanvas.getContext('2d');
+      (function bakeWallTexture() {
+        wtx.fillStyle = '#1d222e';
+        wtx.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+        // Stone blocks
+        wtx.fillStyle = '#282f3f';
+        wtx.fillRect(2, 2, TILE_SIZE / 2 - 3, TILE_SIZE / 2 - 3);
+        wtx.fillRect(TILE_SIZE / 2 + 1, 2, TILE_SIZE / 2 - 3, TILE_SIZE / 2 - 3);
+        wtx.fillRect(2, TILE_SIZE / 2 + 1, TILE_SIZE - 4, TILE_SIZE / 2 - 3);
+        // Crisp bevel highlight & mortar shadow
+        wtx.strokeStyle = 'rgba(160, 210, 255, 0.14)';
+        wtx.lineWidth = 1;
+        wtx.strokeRect(1.5, 1.5, TILE_SIZE - 3, TILE_SIZE - 3);
+        wtx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+        wtx.fillRect(0, TILE_SIZE - 3, TILE_SIZE, 3);
+        wtx.fillRect(TILE_SIZE - 2, 0, 2, TILE_SIZE);
+      })();
+
+      // Pre-rendered floor tile texture
+      const floorTexCanvas = document.createElement('canvas');
+      floorTexCanvas.width = TILE_SIZE;
+      floorTexCanvas.height = TILE_SIZE;
+      const ftx = floorTexCanvas.getContext('2d');
+      (function bakeFloorTexture() {
+        ftx.fillStyle = '#11141d';
+        ftx.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+        ftx.strokeStyle = 'rgba(150, 195, 235, 0.075)';
+        ftx.lineWidth = 1;
+        ftx.strokeRect(0.5, 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
+        // Subtle corner rivets
+        ftx.fillStyle = 'rgba(0, 240, 255, 0.11)';
+        ftx.fillRect(3, 3, 2, 2);
+        ftx.fillRect(TILE_SIZE - 5, TILE_SIZE - 5, 2, 2);
+      })();
+
+      const sound = new SoundEngine();
+
+      // DOM elements
+      const hudEl = document.getElementById('hud');
+      const hudSector = document.getElementById('hudSector');
+      const hudKeys = document.getElementById('hudKeys');
+      const keySlots = [
+        document.getElementById('keySlot0'),
+        document.getElementById('keySlot1'),
+        document.getElementById('keySlot2')
+      ];
+      const staminaBar = document.getElementById('staminaBar');
+      const staminaFill = document.getElementById('staminaFill');
+      const hudShift = document.getElementById('hudShift');
+      const threatMeter = document.getElementById('threatMeter');
+      const threatBars = threatMeter.querySelectorAll('.threat-bar');
+      const threatText = document.getElementById('threatText');
+      const toastBanner = document.getElementById('toastBanner');
+
+      const titleScreen = document.getElementById('titleScreen');
+      const pauseScreen = document.getElementById('pauseScreen');
+      const winScreen = document.getElementById('winScreen');
+      const gameOverScreen = document.getElementById('gameOverScreen');
+      const touchControls = document.getElementById('touchControls');
+
+      const state = {
+        mode: 'TITLE', // 'TITLE' | 'PLAYING' | 'PAUSED' | 'WIN' | 'GAMEOVER'
+        difficulty: 'normal',
+        sector: 1,
+        totalTime: 0,
+        sectorTime: 0,
+        maze: null, // { grid, w, h }
+        explored: null, // Uint8Array per cell
+        keys: [], // { gx, gy, x, y, collected, phase }
+        keysCollected: 0,
+        exit: { gx: 1, gy: 1, x: 0, y: 0, unlocked: false },
+        player: {
+          x: 0,
+          y: 0,
+          radius: TILE_SIZE * 0.28,
+          angle: 0,
+          targetAngle: 0,
+          stamina: 100,
+          exhausted: false,
+          sprinting: false,
+          stepTimer: 0
+        },
+        stalker: {
+          x: 0,
+          y: 0,
+          radius: TILE_SIZE * 0.31,
+          angle: 0,
+          aiState: 'PATROL', // 'PATROL' | 'INVESTIGATE' | 'CHASE'
+          path: [],
+          repathTimer: 0,
+          targetCell: null,
+          alertTimer: 0,
+          trail: []
+        },
+        camera: { x: 0, y: 0 },
+        shake: 0,
+        shiftTimer: WALL_SHIFT_INTERVAL,
+        shiftWarned: false,
+        pendingCloses: [], // { gx, gy }
+        shiftAnims: [], // { gx, gy, type: 'close'|'open', progress: 0..1 }
+        ripples: [], // { x, y, r, maxR, alpha, color }
+        particles: [], // { x, y, vx, vy, life, maxLife, color }
+        heartbeatTimer: 0,
+        toastTimer: 0,
+        pointerAim: { active: false, screenX: 0, screenY: 0 },
+        touchForced: false
+      };
+
+      const input = {
+        up: false,
+        down: false,
+        left: false,
+        right: false,
+        sprint: false
+      };
+
+      // Responsive canvas resize
+      let viewW = 1280;
+      let viewH = 720;
+      let dpr = 1;
+
+      function resizeCanvas() {
+        const rect = canvas.parentElement.getBoundingClientRect();
+        dpr = Math.min(window.devicePixelRatio || 1, 2);
+        viewW = Math.max(320, Math.floor(rect.width));
+        viewH = Math.max(240, Math.floor(rect.height));
+        canvas.width = Math.floor(viewW * dpr);
+        canvas.height = Math.floor(viewH * dpr);
+        lightCanvas.width = Math.floor(viewW * dpr);
+        lightCanvas.height = Math.floor(viewH * dpr);
+      }
+
+      window.addEventListener('resize', resizeCanvas);
+      resizeCanvas();
+
+      // Detect coarse pointer for automatic touch pad
+      if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
+        state.touchForced = true;
+      }
+
+      function updateTouchVisibility() {
+        if (state.mode === 'PLAYING' && (state.touchForced || window.innerWidth <= 820)) {
+          touchControls.classList.add('active');
+        } else {
+          touchControls.classList.remove('active');
+        }
+      }
+
+      function showToast(text, tone = 'normal', duration = 2.4) {
+        toastBanner.textContent = text;
+        toastBanner.className = 'visible' + (tone === 'danger' ? ' danger' : tone === 'unlock' ? ' unlock' : '');
+        state.toastTimer = duration;
+      }
+
+      function formatTime(sec) {
+        const total = Math.max(0, Math.floor(sec));
+        const m = String(Math.floor(total / 60)).padStart(2, '0');
+        const s = String(total % 60).padStart(2, '0');
+        return `${m}:${s}`;
+      }
+
+      /* =========================================================================
+         5. LEVEL SETUP
+         ========================================================================= */
+      function initSector(sectorNum) {
+        const cols = Math.min(35, 15 + (sectorNum - 1) * 4);
+        const rows = Math.min(25, 11 + (sectorNum - 1) * 2);
+        const maze = generateMaze(cols, rows);
+        const { grid, w, h } = maze;
+
+        state.maze = maze;
+        state.explored = new Uint8Array(w * h);
+        state.sectorTime = 0;
+        state.keysCollected = 0;
+        state.shiftTimer = WALL_SHIFT_INTERVAL;
+        state.shiftWarned = false;
+        state.pendingCloses = [];
+        state.shiftAnims = [];
+        state.ripples = [];
+        state.particles = [];
+        state.shake = 0;
+
+        // Player spawns near top-left open cell
+        const startGX = 1;
+        const startGY = 1;
+        state.player.x = (startGX + 0.5) * TILE_SIZE;
+        state.player.y = (startGY + 0.5) * TILE_SIZE;
+        state.player.stamina = 100;
+        state.player.exhausted = false;
+        state.player.angle = 0;
+        state.player.targetAngle = 0;
+
+        // BFS from start to place exit at farthest floor cell
+        const { dist } = computeBFS(grid, w, h, startGX, startGY);
+        const floorCells = [];
+        let exitGX = w - 2;
+        let exitGY = h - 2;
+        let maxDist = -1;
+
+        for (let y = 1; y < h - 1; y++) {
+          for (let x = 1; x < w - 1; x++) {
+            if (grid[y][x] === 0 && dist[y][x] >= 0) {
+              floorCells.push({ gx: x, gy: y, d: dist[y][x] });
+              if (dist[y][x] > maxDist) {
+                maxDist = dist[y][x];
+                exitGX = x;
+                exitGY = y;
+              }
+            }
+          }
+        }
+
+        state.exit = {
+          gx: exitGX,
+          gy: exitGY,
+          x: (exitGX + 0.5) * TILE_SIZE,
+          y: (exitGY + 0.5) * TILE_SIZE,
+          unlocked: false
+        };
+
+        // Place 3 Key Fragments spaced well apart from player, exit, and each other
+        const keyCandidates = floorCells.filter((c) => {
+          const isStart = c.gx === startGX && c.gy === startGY;
+          const isExit = c.gx === exitGX && c.gy === exitGY;
+          return !isStart && !isExit && c.d >= Math.max(5, Math.floor(maxDist * 0.28));
+        });
+
+        const chosenKeys = [];
+        shuffle(keyCandidates);
+        // Greedy farthest-first selection for good map spread
+        for (let k = 0; k < KEYS_REQUIRED; k++) {
+          let best = null;
+          let bestScore = -1;
+          for (const cand of keyCandidates) {
+            if (chosenKeys.some((ck) => ck.gx === cand.gx && ck.gy === cand.gy)) continue;
+            let minSep = Math.hypot(cand.gx - startGX, cand.gy - startGY);
+            minSep = Math.min(minSep, Math.hypot(cand.gx - exitGX, cand.gy - exitGY));
+            for (const ck of chosenKeys) {
+              minSep = Math.min(minSep, Math.hypot(cand.gx - ck.gx, cand.gy - ck.gy));
+            }
+            if (minSep > bestScore) {
+              bestScore = minSep;
+              best = cand;
+            }
+          }
+          if (!best && floorCells.length > 2) {
+            best = floorCells[Math.floor(Math.random() * floorCells.length)];
+          }
+          if (best) chosenKeys.push(best);
+        }
+
+        state.keys = chosenKeys.map((c, idx) => ({
+          gx: c.gx,
+          gy: c.gy,
+          x: (c.gx + 0.5) * TILE_SIZE,
+          y: (c.gy + 0.5) * TILE_SIZE,
+          collected: false,
+          phase: idx * 2.1
+        }));
+
+        // Spawn The Warden far from player
+        const stalkerCandidates = floorCells.filter((c) => c.d >= Math.max(8, Math.floor(maxDist * 0.55)));
+        const stalkerSpawn = stalkerCandidates.length
+          ? stalkerCandidates[Math.floor(Math.random() * stalkerCandidates.length)]
+          : { gx: exitGX, gy: exitGY };
+
+        state.stalker = {
+          x: (stalkerSpawn.gx + 0.5) * TILE_SIZE,
+          y: (stalkerSpawn.gy + 0.5) * TILE_SIZE,
+          radius: TILE_SIZE * 0.31,
+          angle: Math.PI,
+          aiState: 'PATROL',
+          path: [],
+          repathTimer: 0,
+          targetCell: null,
+          alertTimer: 0,
+          trail: []
+        };
+
+        state.camera.x = state.player.x;
+        state.camera.y = state.player.y;
+        updateHUD();
+      }
+
+      /* =========================================================================
+         6. COLLISION, LINE-OF-SIGHT & RAYCAST VISIBILITY
+         ========================================================================= */
+      function isWallAtGrid(gx, gy) {
+        const { grid, w, h } = state.maze;
+        if (gx < 0 || gy < 0 || gx >= w || gy >= h) return true;
+        return grid[gy][gx] === 1;
+      }
+
+      function resolveCircleGridCollisions(entity) {
+        const r = entity.radius;
+        const cx = Math.floor(entity.x / TILE_SIZE);
+        const cy = Math.floor(entity.y / TILE_SIZE);
+
+        for (let gy = cy - 1; gy <= cy + 1; gy++) {
+          for (let gx = cx - 1; gx <= cx + 1; gx++) {
+            if (!isWallAtGrid(gx, gy)) continue;
+            const minX = gx * TILE_SIZE;
+            const maxX = minX + TILE_SIZE;
+            const minY = gy * TILE_SIZE;
+            const maxY = minY + TILE_SIZE;
+
+            const closestX = Math.max(minX, Math.min(entity.x, maxX));
+            const closestY = Math.max(minY, Math.min(entity.y, maxY));
+            const dx = entity.x - closestX;
+            const dy = entity.y - closestY;
+            const distSq = dx * dx + dy * dy;
+
+            if (distSq < r * r) {
+              const dist = Math.sqrt(distSq);
+              if (dist > 0.0001) {
+                const overlap = r - dist;
+                entity.x += (dx / dist) * overlap;
+                entity.y += (dy / dist) * overlap;
+              } else {
+                // Inside tile fallback push
+                entity.x += r;
+              }
+            }
+          }
+        }
+      }
+
+      function castRay(originX, originY, angle, maxDist) {
+        const { grid, w, h } = state.maze;
+        const dx = Math.cos(angle);
+        const dy = Math.sin(angle);
+
+        let gx = Math.floor(originX / TILE_SIZE);
+        let gy = Math.floor(originY / TILE_SIZE);
+
+        const deltaDistX = Math.abs(dx) < 1e-6 ? 1e6 : Math.abs(TILE_SIZE / dx);
+        const deltaDistY = Math.abs(dy) < 1e-6 ? 1e6 : Math.abs(TILE_SIZE / dy);
+
+        let stepX, sideDistX;
+        if (dx < 0) {
+          stepX = -1;
+          sideDistX = ((originX - gx * TILE_SIZE) / TILE_SIZE) * deltaDistX;
+        } else {
+          stepX = 1;
+          sideDistX = (((gx + 1) * TILE_SIZE - originX) / TILE_SIZE) * deltaDistX;
+        }
+
+        let stepY, sideDistY;
+        if (dy < 0) {
+          stepY = -1;
+          sideDistY = ((originY - gy * TILE_SIZE) / TILE_SIZE) * deltaDistY;
+        } else {
+          stepY = 1;
+          sideDistY = (((gy + 1) * TILE_SIZE - originY) / TILE_SIZE) * deltaDistY;
+        }
+
+        let dist = 0;
+        let safety = 0;
+        while (dist < maxDist && safety < 64) {
+          safety++;
+          if (sideDistX < sideDistY) {
+            dist = sideDistX;
+            sideDistX += deltaDistX;
+            gx += stepX;
+          } else {
+            dist = sideDistY;
+            sideDistY += deltaDistY;
+            gy += stepY;
+          }
+          if (dist >= maxDist) {
+            dist = maxDist;
+            break;
+          }
+          if (gx < 0 || gy < 0 || gx >= w || gy >= h || grid[gy][gx] === 1) {
+            break;
+          }
+        }
+
+        const clamped = Math.min(dist, maxDist);
+        return {
+          x: originX + dx * clamped,
+          y: originY + dy * clamped,
+          dist: clamped
+        };
+      }
+
+      function hasLineOfSight(x1, y1, x2, y2) {
+        const dx = x2 - x1;
+        const dy = y2 - y1;
+        const dist = Math.hypot(dx, dy);
+        if (dist < 1) return true;
+        const hit = castRay(x1, y1, Math.atan2(dy, dx), dist);
+        return hit.dist >= dist - 4;
+      }
+
+      /* =========================================================================
+         7. SHIFTING WALLS SYSTEM (SOLVABILITY GUARANTEED VIA BFS)
+         ========================================================================= */
+      function preparePendingWallShifts() {
+        const { grid, w, h } = state.maze;
+        const pGX = Math.floor(state.player.x / TILE_SIZE);
+        const pGY = Math.floor(state.player.y / TILE_SIZE);
+        const sGX = Math.floor(state.stalker.x / TILE_SIZE);
+        const sGY = Math.floor(state.stalker.y / TILE_SIZE);
+
+        const floorCandidates = [];
+        for (let y = 1; y < h - 1; y++) {
+          for (let x = 1; x < w - 1; x++) {
+            if (grid[y][x] !== 0) continue;
+            // Do not close player, stalker, keys, exit, or immediate adjacent tile to player
+            if (Math.abs(x - pGX) <= 1 && Math.abs(y - pGY) <= 1) continue;
+            if (Math.abs(x - sGX) <= 1 && Math.abs(y - sGY) <= 1) continue;
+            if (x === state.exit.gx && y === state.exit.gy) continue;
+            if (state.keys.some((k) => !k.collected && k.gx === x && k.gy === y)) continue;
+            floorCandidates.push({ gx: x, gy: y });
+          }
+        }
+
+        shuffle(floorCandidates);
+        const preset = DIFFICULTIES[state.difficulty];
+        const targetCount = Math.min(preset.shiftWallCount, floorCandidates.length);
+
+        const chosen = [];
+        // Test each candidate by tentatively toggling to wall and running BFS from player
+        for (const cand of floorCandidates) {
+          if (chosen.length >= targetCount) break;
+          grid[cand.gy][cand.gx] = 1;
+          const { dist } = computeBFS(grid, w, h, pGX, pGY);
+          let solvable = dist[state.exit.gy][state.exit.gx] !== -1;
+          if (solvable) {
+            for (const k of state.keys) {
+              if (!k.collected && dist[k.gy][k.gx] === -1) {
+                solvable = false;
+                break;
+              }
+            }
+          }
+          // Keep Stalker able to reach player or at least have room
+          if (solvable && dist[sGY][sGX] === -1) {
+            solvable = false;
+          }
+          // Revert for now — only commit on actual shift!
+          grid[cand.gy][cand.gx] = 0;
+
+          if (solvable) {
+            // Re-keep tentative walls in grid while picking multiple so combined set stays solvable
+            grid[cand.gy][cand.gx] = 1;
+            chosen.push(cand);
+          }
+        }
+
+        // Restore all tentatively closed walls until warning ends
+        for (const c of chosen) {
+          grid[c.gy][c.gx] = 0;
+        }
+        state.pendingCloses = chosen;
+      }
+
+      function executeWallShift() {
+        const { grid, w, h } = state.maze;
+        const pGX = Math.floor(state.player.x / TILE_SIZE);
+        const pGY = Math.floor(state.player.y / TILE_SIZE);
+        const sGX = Math.floor(state.stalker.x / TILE_SIZE);
+        const sGY = Math.floor(state.stalker.y / TILE_SIZE);
+
+        let changed = 0;
+
+        // 1. Open a few interior walls first to create dynamic new paths
+        const closedWalls = [];
+        for (let y = 1; y < h - 1; y++) {
+          for (let x = 1; x < w - 1; x++) {
+            if (grid[y][x] === 1) {
+              const adjFloors =
+                (grid[y - 1][x] === 0 ? 1 : 0) +
+                (grid[y + 1][x] === 0 ? 1 : 0) +
+                (grid[y][x - 1] === 0 ? 1 : 0) +
+                (grid[y][x + 1] === 0 ? 1 : 0);
+              if (adjFloors >= 2) closedWalls.push({ gx: x, gy: y });
+            }
+          }
+        }
+        shuffle(closedWalls);
+        const openCount = Math.min(3, closedWalls.length);
+        for (let i = 0; i < openCount; i++) {
+          const ow = closedWalls[i];
+          grid[ow.gy][ow.gx] = 0;
+          state.shiftAnims.push({ gx: ow.gx, gy: ow.gy, type: 'open', progress: 0 });
+          changed++;
+        }
+
+        // 2. Slam shut pending walls (re-verify player/stalker didn't step onto them + BFS still holds)
+        for (const cw of state.pendingCloses) {
+          if (Math.abs(cw.gx - pGX) <= 0 && Math.abs(cw.gy - pGY) <= 0) continue;
+          if (Math.abs(cw.gx - sGX) <= 0 && Math.abs(cw.gy - sGY) <= 0) continue;
+
+          // Check bounding overlap with player/stalker
+          const minX = cw.gx * TILE_SIZE;
+          const maxX = minX + TILE_SIZE;
+          const minY = cw.gy * TILE_SIZE;
+          const maxY = minY + TILE_SIZE;
+          const pNear = state.player.x + state.player.radius > minX && state.player.x - state.player.radius < maxX &&
+                        state.player.y + state.player.radius > minY && state.player.y - state.player.radius < maxY;
+          const sNear = state.stalker.x + state.stalker.radius > minX && state.stalker.x - state.stalker.radius < maxX &&
+                        state.stalker.y + state.stalker.radius > minY && state.stalker.y - state.stalker.radius < maxY;
+          if (pNear || sNear) continue;
+
+          grid[cw.gy][cw.gx] = 1;
+          const { dist } = computeBFS(grid, w, h, pGX, pGY);
+          let ok = dist[state.exit.gy][state.exit.gx] !== -1 && dist[sGY][sGX] !== -1;
+          if (ok) {
+            for (const k of state.keys) {
+              if (!k.collected && dist[k.gy][k.gx] === -1) {
+                ok = false;
+                break;
+              }
+            }
+          }
+          if (ok) {
+            state.shiftAnims.push({ gx: cw.gx, gy: cw.gy, type: 'close', progress: 0 });
+            changed++;
+          } else {
+            grid[cw.gy][cw.gx] = 0;
+          }
+        }
+
+        state.pendingCloses = [];
+        state.stalker.repathTimer = 0; // Force immediate Stalker repath
+
+        if (changed > 0) {
+          sound.playWallShiftSlam();
+          if (!prefersReducedMotion) state.shake = Math.max(state.shake, 7);
+          showToast('SECTOR WALLS SHIFTED', 'danger', 2.0);
+        }
+      }
+
+      /* =========================================================================
+         8. UPDATE LOOP (PLAYER, STALKER AI, SHIFT TIMER, PICKUPS)
+         ========================================================================= */
+      function update(dt) {
+        if (state.mode !== 'PLAYING') return;
+
+        const preset = DIFFICULTIES[state.difficulty];
+        state.sectorTime += dt;
+        state.totalTime += dt;
+
+        // Toast timer
+        if (state.toastTimer > 0) {
+          state.toastTimer -= dt;
+          if (state.toastTimer <= 0) {
+            toastBanner.className = '';
+          }
+        }
+
+        // Screen shake decay
+        if (state.shake > 0) {
+          state.shake = Math.max(0, state.shake - dt * 22);
+        }
+
+        // ---- PLAYER MOVEMENT ----
+        let moveX = (input.right ? 1 : 0) - (input.left ? 1 : 0);
+        let moveY = (input.down ? 1 : 0) - (input.up ? 1 : 0);
+        const moving = moveX !== 0 || moveY !== 0;
+
+        if (moving) {
+          const len = Math.hypot(moveX, moveY);
+          moveX /= len;
+          moveY /= len;
+          state.player.targetAngle = Math.atan2(moveY, moveX);
+        }
+
+        // Aim flashlight toward pointer if mouse moved recently, else movement angle
+        if (state.pointerAim.active) {
+          const worldMouseX = state.pointerAim.screenX - viewW / 2 + state.camera.x;
+          const worldMouseY = state.pointerAim.screenY - viewH / 2 + state.camera.y;
+          state.player.targetAngle = Math.atan2(worldMouseY - state.player.y, worldMouseX - state.player.x);
+        }
+
+        // Smooth shortest-angle interpolation for flashlight
+        let angleDiff = state.player.targetAngle - state.player.angle;
+        while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+        while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+        state.player.angle += angleDiff * Math.min(1, dt * 14);
+
+        // Unlimited stamina for non-stop sprinting
+        state.player.stamina = 100;
+        state.player.exhausted = false;
+        state.player.sprinting = input.sprint && moving;
+
+        const speed = state.player.sprinting ? preset.playerSprintSpeed : preset.playerWalkSpeed;
+        if (moving) {
+          // Sub-step high-speed movement to keep wall sliding smooth on tight corners
+          const totalDisp = speed * dt;
+          const maxStep = state.player.radius * 0.45;
+          const steps = Math.max(1, Math.ceil(totalDisp / maxStep));
+          const stepX = (moveX * totalDisp) / steps;
+          const stepY = (moveY * totalDisp) / steps;
+
+          for (let s = 0; s < steps; s++) {
+            state.player.x += stepX;
+            resolveCircleGridCollisions(state.player);
+            state.player.y += stepY;
+            resolveCircleGridCollisions(state.player);
+          }
+
+          // Footsteps & noise ripples synced to faster cadence
+          state.player.stepTimer -= dt;
+          if (state.player.stepTimer <= 0) {
+            sound.playFootstep(state.player.sprinting);
+            state.player.stepTimer = state.player.sprinting ? 0.17 : 0.27;
+            if (state.player.sprinting) {
+              state.ripples.push({
+                x: state.player.x,
+                y: state.player.y,
+                r: 6,
+                maxR: 92,
+                alpha: 0.45,
+                color: '#00f0ff'
+              });
+            }
+          }
+        } else {
+          state.player.stepTimer = 0.04;
+        }
+
+        // Mark explored tiles around player
+        const pGX = Math.floor(state.player.x / TILE_SIZE);
+        const pGY = Math.floor(state.player.y / TILE_SIZE);
+        const { w, h, grid } = state.maze;
+        for (let dy = -3; dy <= 3; dy++) {
+          for (let dx = -3; dx <= 3; dx++) {
+            const tx = pGX + dx;
+            const ty = pGY + dy;
+            if (tx >= 0 && ty >= 0 && tx < w && ty < h) {
+              if (dx * dx + dy * dy <= 10) {
+                state.explored[ty * w + tx] = 1;
+              }
+            }
+          }
+        }
+
+        // Smooth responsive camera follow tuned for faster movement
+        state.camera.x += (state.player.x - state.camera.x) * Math.min(1, dt * 15);
+        state.camera.y += (state.player.y - state.camera.y) * Math.min(1, dt * 15);
+
+        // ---- WALL SHIFT TIMER ----
+        state.shiftTimer -= dt;
+        if (state.shiftTimer <= WALL_WARNING_DURATION && !state.shiftWarned) {
+          state.shiftWarned = true;
+          preparePendingWallShifts();
+          sound.playShiftWarning();
+          showToast('WALL SHIFT IMMINENT', 'danger', 2.2);
+        }
+        if (state.shiftTimer <= 0) {
+          state.shiftTimer = WALL_SHIFT_INTERVAL;
+          state.shiftWarned = false;
+          executeWallShift();
+        }
+
+        // Animate shifting wall blocks
+        for (let i = state.shiftAnims.length - 1; i >= 0; i--) {
+          state.shiftAnims[i].progress += dt * 3.2;
+          if (state.shiftAnims[i].progress >= 1) {
+            state.shiftAnims.splice(i, 1);
+          }
+        }
+
+        // ---- KEY FRAGMENTS & EXIT ----
+        for (let i = 0; i < state.keys.length; i++) {
+          const k = state.keys[i];
+          k.phase += dt * 3;
+          if (!k.collected) {
+            const d = Math.hypot(state.player.x - k.x, state.player.y - k.y);
+            if (d < state.player.radius + TILE_SIZE * 0.34) {
+              k.collected = true;
+              state.keysCollected++;
+              sound.playKeyPickup(state.keysCollected - 1);
+
+              // Burst particles
+              for (let p = 0; p < 16; p++) {
+                const ang = (Math.PI * 2 * p) / 16;
+                const spd = 40 + Math.random() * 90;
+                state.particles.push({
+                  x: k.x,
+                  y: k.y,
+                  vx: Math.cos(ang) * spd,
+                  vy: Math.sin(ang) * spd,
+                  life: 0.5,
+                  maxLife: 0.5,
+                  color: '#00f0ff'
+                });
+              }
+
+              if (state.keysCollected >= KEYS_REQUIRED) {
+                state.exit.unlocked = true;
+                sound.playExitUnlocked();
+                showToast('ALL KEYS RECOVERED — EXIT UNLOCKED', 'unlock', 3.2);
+              } else {
+                showToast(`KEY FRAGMENT ${state.keysCollected} / ${KEYS_REQUIRED}`, 'unlock', 1.8);
+              }
+            }
+          }
+        }
+
+        // Check Exit reach
+        if (state.exit.unlocked) {
+          const dExit = Math.hypot(state.player.x - state.exit.x, state.player.y - state.exit.y);
+          if (dExit < state.player.radius + TILE_SIZE * 0.36) {
+            handleWin();
+            return;
+          }
+        }
+
+        // ---- STALKER ("THE WARDEN") AI ----
+        updateStalker(dt, preset, pGX, pGY);
+
+        // ---- RIPPLES & PARTICLES ----
+        for (let i = state.ripples.length - 1; i >= 0; i--) {
+          const rp = state.ripples[i];
+          rp.r += dt * 165;
+          rp.alpha = Math.max(0, 0.45 * (1 - rp.r / rp.maxR));
+          if (rp.r >= rp.maxR) state.ripples.splice(i, 1);
+        }
+
+        for (let i = state.particles.length - 1; i >= 0; i--) {
+          const pt = state.particles[i];
+          pt.x += pt.vx * dt;
+          pt.y += pt.vy * dt;
+          pt.life -= dt;
+          if (pt.life <= 0) state.particles.splice(i, 1);
+        }
+
+        updateHUD();
+      }
+
+      function updateStalker(dt, preset, pGX, pGY) {
+        const st = state.stalker;
+        const { grid, w, h } = state.maze;
+
+        const distToPlayer = Math.hypot(state.player.x - st.x, state.player.y - st.y);
+        const canSeePlayer = distToPlayer <= preset.stalkerSightRange && hasLineOfSight(st.x, st.y, state.player.x, state.player.y);
+        const hearsSprint = state.player.sprinting && distToPlayer <= preset.stalkerHearingRange;
+
+        const prevState = st.aiState;
+
+        if (canSeePlayer || (hearsSprint && distToPlayer <= preset.stalkerHearingRange * 0.72)) {
+          st.aiState = 'CHASE';
+          st.alertTimer = 4.2;
+          st.targetCell = { gx: pGX, gy: pGY };
+          if (prevState !== 'CHASE') {
+            sound.playChaseAlert();
+            showToast('THE WARDEN SPOTTED YOU', 'danger', 2.0);
+          }
+        } else if (hearsSprint) {
+          if (st.aiState !== 'CHASE') st.aiState = 'INVESTIGATE';
+          st.alertTimer = Math.max(st.alertTimer, 3.4);
+          st.targetCell = { gx: pGX, gy: pGY };
+        } else if (st.aiState === 'CHASE' || st.aiState === 'INVESTIGATE') {
+          st.alertTimer -= dt;
+          if (st.alertTimer <= 0) {
+            st.aiState = 'PATROL';
+            st.targetCell = null;
+            st.path = [];
+          }
+        }
+
+        // Repath periodically
+        st.repathTimer -= dt;
+        const sGX = Math.floor(st.x / TILE_SIZE);
+        const sGY = Math.floor(st.y / TILE_SIZE);
+
+        if (st.repathTimer <= 0 || st.path.length === 0) {
+          st.repathTimer = st.aiState === 'CHASE' ? 0.22 : 0.45;
+          const { dist, parent } = computeBFS(grid, w, h, sGX, sGY);
+
+          if (st.aiState === 'CHASE') {
+            st.targetCell = { gx: pGX, gy: pGY };
+          } else if (st.aiState === 'PATROL' && (!st.targetCell || (sGX === st.targetCell.gx && sGY === st.targetCell.gy) || dist[st.targetCell.gy]?.[st.targetCell.gx] === -1)) {
+            // Pick a random reachable patrol waypoint
+            const reachable = [];
+            for (let y = 1; y < h - 1; y++) {
+              for (let x = 1; x < w - 1; x++) {
+                if (grid[y][x] === 0 && dist[y][x] > 3) {
+                  reachable.push({ gx: x, gy: y });
+                }
+              }
+            }
+            if (reachable.length > 0) {
+              st.targetCell = reachable[Math.floor(Math.random() * reachable.length)];
+            }
+          }
+
+          if (st.targetCell && dist[st.targetCell.gy]?.[st.targetCell.gx] > 0) {
+            st.path = reconstructPath(parent, w, sGX, sGY, st.targetCell.gx, st.targetCell.gy);
+          } else {
+            st.path = [];
+          }
+        }
+
+        // Move toward next path waypoint (or directly toward player if close & clear LOS)
+        let targetX = st.x;
+        let targetY = st.y;
+        if (st.aiState === 'CHASE' && canSeePlayer && distToPlayer < TILE_SIZE * 2.8) {
+          targetX = state.player.x;
+          targetY = state.player.y;
+        } else if (st.path.length > 0) {
+          const wp = st.path[0];
+          targetX = (wp.gx + 0.5) * TILE_SIZE;
+          targetY = (wp.gy + 0.5) * TILE_SIZE;
+          if (Math.hypot(targetX - st.x, targetY - st.y) < 8) {
+            st.path.shift();
+            if (st.path.length > 0) {
+              targetX = (st.path[0].gx + 0.5) * TILE_SIZE;
+              targetY = (st.path[0].gy + 0.5) * TILE_SIZE;
+            }
+          }
+        }
+
+        const dx = targetX - st.x;
+        const dy = targetY - st.y;
+        const dMove = Math.hypot(dx, dy);
+        const stSpeed =
+          st.aiState === 'CHASE'
+            ? preset.stalkerChaseSpeed
+            : st.aiState === 'INVESTIGATE'
+              ? preset.stalkerInvestigateSpeed
+              : preset.stalkerPatrolSpeed;
+
+        if (dMove > 1) {
+          st.x += (dx / dMove) * stSpeed * dt;
+          resolveCircleGridCollisions(st);
+          st.y += (dy / dMove) * stSpeed * dt;
+          resolveCircleGridCollisions(st);
+
+          const desiredAngle = Math.atan2(dy, dx);
+          let aDiff = desiredAngle - st.angle;
+          while (aDiff > Math.PI) aDiff -= Math.PI * 2;
+          while (aDiff < -Math.PI) aDiff += Math.PI * 2;
+          st.angle += aDiff * Math.min(1, dt * 10);
+        }
+
+        // Stalker ember trail during chase
+        if (st.aiState === 'CHASE' && Math.random() < 0.45) {
+          st.trail.push({ x: st.x, y: st.y, life: 0.35 });
+        }
+        for (let i = st.trail.length - 1; i >= 0; i--) {
+          st.trail[i].life -= dt;
+          if (st.trail[i].life <= 0) st.trail.splice(i, 1);
+        }
+
+        // Dynamic heartbeat audio & camera tension
+        const dangerRange = 380;
+        const proximity = Math.max(0, 1 - distToPlayer / dangerRange);
+        if (proximity > 0.08 || st.aiState === 'CHASE') {
+          const intensity = st.aiState === 'CHASE' ? Math.max(0.5, proximity) : proximity * 0.75;
+          const beatInterval = 0.92 - intensity * 0.54; // 65 BPM -> 160 BPM
+          state.heartbeatTimer -= dt;
+          if (state.heartbeatTimer <= 0) {
+            sound.playHeartbeat(intensity);
+            state.heartbeatTimer = beatInterval;
+          }
+          if (st.aiState === 'CHASE' && !prefersReducedMotion && distToPlayer < 220) {
+            state.shake = Math.max(state.shake, intensity * 2.4);
+          }
+        } else {
+          state.heartbeatTimer = 0.1;
+        }
+
+        // Catch check
+        if (distToPlayer < state.player.radius + st.radius - 4) {
+          handleGameOver();
+        }
+      }
+
+      /* =========================================================================
+         9. HUD & SCREEN STATE TRANSITIONS
+         ========================================================================= */
+      function updateHUD() {
+        hudSector.textContent = String(state.sector).padStart(2, '0');
+        hudKeys.textContent = `${state.keysCollected}/${KEYS_REQUIRED}`;
+        keySlots.forEach((slot, idx) => {
+          slot.classList.toggle('collected', idx < state.keysCollected);
+        });
+
+        staminaBar.setAttribute('aria-valuenow', '100');
+        staminaFill.style.transform = 'scaleX(1)';
+        staminaFill.classList.remove('low', 'exhausted');
+        const staminaStateEl = document.getElementById('staminaState');
+        if (staminaStateEl) {
+          staminaStateEl.textContent = state.player.sprinting ? 'RUN' : 'MAX';
+        }
+
+        hudShift.textContent = `${Math.max(0, state.shiftTimer).toFixed(1)}s`;
+        hudShift.classList.toggle('warning', state.shiftTimer <= 5 && state.shiftTimer > WALL_WARNING_DURATION);
+        hudShift.classList.toggle('imminent', state.shiftTimer <= WALL_WARNING_DURATION);
+
+        // Threat Proximity Indicator
+        const dist = Math.hypot(state.player.x - state.stalker.x, state.player.y - state.stalker.y);
+        let level = 0;
+        let label = 'CLEAR';
+        let cls = 'clear';
+
+        if (state.stalker.aiState === 'CHASE') {
+          level = 4;
+          label = 'HUNTED';
+          cls = 'chase';
+        } else if (dist < 190 || state.stalker.aiState === 'INVESTIGATE') {
+          level = 3;
+          label = 'ALERT';
+          cls = 'near';
+        } else if (dist < 310) {
+          level = 2;
+          label = 'NEAR';
+          cls = 'near';
+        } else if (dist < 440) {
+          level = 1;
+          label = 'FAINT';
+          cls = 'clear';
+        }
+
+        threatMeter.className = `threat-meter ${cls}`;
+        threatText.textContent = label;
+        threatBars.forEach((bar, i) => {
+          bar.classList.toggle('active', i < level);
+        });
+      }
+
+      function setOverlayState(mode) {
+        state.mode = mode;
+        hudEl.classList.toggle('hidden', mode === 'TITLE');
+        titleScreen.classList.toggle('hidden', mode !== 'TITLE');
+        pauseScreen.classList.toggle('hidden', mode !== 'PAUSED');
+        winScreen.classList.toggle('hidden', mode !== 'WIN');
+        gameOverScreen.classList.toggle('hidden', mode !== 'GAMEOVER');
+        updateTouchVisibility();
+      }
+
+      function startNewRun() {
+        sound.init();
+        state.sector = 1;
+        state.totalTime = 0;
+        initSector(1);
+        setOverlayState('PLAYING');
+        showToast('SECTOR 01 — FIND 3 KEYS', 'unlock', 2.4);
+      }
+
+      function handleWin() {
+        sound.playWinStinger();
+        document.getElementById('winSectorTime').textContent = formatTime(state.sectorTime);
+        document.getElementById('winTotalTime').textContent = formatTime(state.totalTime);
+        document.getElementById('winNextSector').textContent = String(state.sector + 1).padStart(2, '0');
+        setOverlayState('WIN');
+      }
+
+      function advanceNextSector() {
+        sound.init();
+        state.sector += 1;
+        initSector(state.sector);
+        setOverlayState('PLAYING');
+        showToast(`SECTOR ${String(state.sector).padStart(2, '0')} — LARGER MAZE`, 'unlock', 2.4);
+      }
+
+      function handleGameOver() {
+        sound.playGameOverStinger();
+        document.getElementById('loseTotalTime').textContent = formatTime(state.totalTime);
+        document.getElementById('loseSectors').textContent = String(state.sector - 1);
+        document.getElementById('loseKeys').textContent = `${state.keysCollected}/${KEYS_REQUIRED}`;
+        setOverlayState('GAMEOVER');
+      }
+
+      /* =========================================================================
+         10. RENDERING (TEXTURED MAZE, RAYCAST LIGHTING, FOG OF WAR, VIGNETTE)
+         ========================================================================= */
+      function render(nowMs) {
+        ctx.save();
+        ctx.scale(dpr, dpr);
+        ctx.fillStyle = '#0a0a0c';
+        ctx.fillRect(0, 0, viewW, viewH);
+
+        if (!state.maze) {
+          ctx.restore();
+          return;
+        }
+
+        const timeSec = nowMs * 0.001;
+        const preset = DIFFICULTIES[state.difficulty];
+        const { grid, w, h } = state.maze;
+
+        // Apply subtle camera shake
+        const shakeX = state.shake > 0 ? (Math.random() - 0.5) * state.shake * 2 : 0;
+        const shakeY = state.shake > 0 ? (Math.random() - 0.5) * state.shake * 2 : 0;
+        const camOffsetX = Math.round(viewW / 2 - state.camera.x + shakeX);
+        const camOffsetY = Math.round(viewH / 2 - state.camera.y + shakeY);
+
+        ctx.save();
+        ctx.translate(camOffsetX, camOffsetY);
+
+        // Compute visible tile bounds for fast rendering
+        const minGX = Math.max(0, Math.floor((-camOffsetX) / TILE_SIZE) - 1);
+        const maxGX = Math.min(w - 1, Math.ceil((viewW - camOffsetX) / TILE_SIZE) + 1);
+        const minGY = Math.max(0, Math.floor((-camOffsetY) / TILE_SIZE) - 1);
+        const maxGY = Math.min(h - 1, Math.ceil((viewH - camOffsetY) / TILE_SIZE) + 1);
+
+        // 1. Floor tiles
+        for (let gy = minGY; gy <= maxGY; gy++) {
+          for (let gx = minGX; gx <= maxGX; gx++) {
+            if (grid[gy][gx] === 0) {
+              ctx.drawImage(floorTexCanvas, gx * TILE_SIZE, gy * TILE_SIZE);
+            }
+          }
+        }
+
+        // 2. Pending wall-shift warning tiles (pulsing hazard stripes)
+        if (state.shiftWarned && state.pendingCloses.length > 0) {
+          const pulse = 0.35 + 0.4 * Math.abs(Math.sin(timeSec * 9));
+          for (const cw of state.pendingCloses) {
+            const tx = cw.gx * TILE_SIZE;
+            const ty = cw.gy * TILE_SIZE;
+            ctx.fillStyle = `rgba(255, 42, 75, ${pulse * 0.35})`;
+            ctx.fillRect(tx + 3, ty + 3, TILE_SIZE - 6, TILE_SIZE - 6);
+            ctx.strokeStyle = `rgba(255, 42, 75, ${pulse})`;
+            ctx.lineWidth = 2;
+            ctx.strokeRect(tx + 4, ty + 4, TILE_SIZE - 8, TILE_SIZE - 8);
+          }
+        }
+
+        // 3. Noise ripples
+        for (const rp of state.ripples) {
+          ctx.beginPath();
+          ctx.arc(rp.x, rp.y, rp.r, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(0, 240, 255, ${rp.alpha})`;
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        }
+
+        // 4. Exit Door
+        {
+          const ex = state.exit.gx * TILE_SIZE;
+          const ey = state.exit.gy * TILE_SIZE;
+          const unlocked = state.exit.unlocked;
+          const pulse = 0.65 + 0.35 * Math.sin(timeSec * 4);
+
+          ctx.fillStyle = unlocked ? 'rgba(0, 240, 255, 0.14)' : 'rgba(255, 42, 75, 0.12)';
+          ctx.fillRect(ex + 4, ey + 4, TILE_SIZE - 8, TILE_SIZE - 8);
+          ctx.strokeStyle = unlocked ? `rgba(0, 240, 255, ${pulse})` : 'rgba(255, 42, 75, 0.65)';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(ex + 5, ey + 5, TILE_SIZE - 10, TILE_SIZE - 10);
+
+          // Door lock bars / open core
+          ctx.fillStyle = unlocked ? '#00f0ff' : '#ff2a4b';
+          ctx.font = '700 10px monospace';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(unlocked ? 'EXIT' : 'LOCK', state.exit.x, state.exit.y);
+        }
+
+        // 5. Key Fragments
+        for (const k of state.keys) {
+          if (k.collected) continue;
+          const bob = Math.sin(k.phase) * 3;
+          const glow = 0.65 + 0.35 * Math.sin(k.phase * 1.4);
+
+          ctx.save();
+          ctx.translate(k.x, k.y + bob);
+
+          // Soft halo
+          const grad = ctx.createRadialGradient(0, 0, 2, 0, 0, 22);
+          grad.addColorStop(0, `rgba(0, 240, 255, ${0.45 * glow})`);
+          grad.addColorStop(1, 'rgba(0, 240, 255, 0)');
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.arc(0, 0, 22, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Rotating crystalline shard
+          ctx.rotate(k.phase * 0.45);
+          ctx.fillStyle = '#00f0ff';
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(0, -10);
+          ctx.lineTo(8, 0);
+          ctx.lineTo(0, 10);
+          ctx.lineTo(-8, 0);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.restore();
+        }
+
+        // 6. Solid Walls & Shifting Wall Animations
+        for (let gy = minGY; gy <= maxGY; gy++) {
+          for (let gx = minGX; gx <= maxGX; gx++) {
+            if (grid[gy][gx] === 1) {
+              ctx.drawImage(wallTexCanvas, gx * TILE_SIZE, gy * TILE_SIZE);
+            }
+          }
+        }
+
+        for (const anim of state.shiftAnims) {
+          const tx = anim.gx * TILE_SIZE;
+          const ty = anim.gy * TILE_SIZE;
+          const scale = anim.type === 'close' ? anim.progress : 1 - anim.progress;
+          const pad = (TILE_SIZE * (1 - scale)) / 2;
+          ctx.fillStyle = anim.type === 'close' ? '#ff2a4b' : '#00f0ff';
+          ctx.globalAlpha = 0.35;
+          ctx.fillRect(tx + pad, ty + pad, TILE_SIZE * scale, TILE_SIZE * scale);
+          ctx.globalAlpha = 1;
+        }
+
+        // 7. Particles
+        for (const pt of state.particles) {
+          ctx.globalAlpha = Math.max(0, pt.life / pt.maxLife);
+          ctx.fillStyle = pt.color;
+          ctx.fillRect(pt.x - 2, pt.y - 2, 4, 4);
+        }
+        ctx.globalAlpha = 1;
+
+        // 8. The Stalker ("The Warden")
+        {
+          const st = state.stalker;
+          const isChase = st.aiState === 'CHASE';
+
+          // Ember trail
+          for (const tr of st.trail) {
+            ctx.fillStyle = `rgba(255, 42, 75, ${tr.life * 0.9})`;
+            ctx.beginPath();
+            ctx.arc(tr.x, tr.y, 5, 0, Math.PI * 2);
+            ctx.fill();
+          }
+
+          ctx.save();
+          ctx.translate(st.x, st.y);
+
+          // Menacing crimson aura
+          const auraR = isChase ? 36 : 24;
+          const sGrad = ctx.createRadialGradient(0, 0, 4, 0, 0, auraR);
+          sGrad.addColorStop(0, isChase ? 'rgba(255, 42, 75, 0.55)' : 'rgba(255, 42, 75, 0.25)');
+          sGrad.addColorStop(1, 'rgba(255, 42, 75, 0)');
+          ctx.fillStyle = sGrad;
+          ctx.beginPath();
+          ctx.arc(0, 0, auraR, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.rotate(st.angle);
+
+          // Outer jagged scanner ring
+          ctx.strokeStyle = isChase ? '#ff2a4b' : '#b81d38';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(0, 0, st.radius, -0.9, 0.9);
+          ctx.stroke();
+
+          // Dark armored body
+          ctx.fillStyle = '#18090e';
+          ctx.strokeStyle = '#ff2a4b';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(0, 0, st.radius * 0.78, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+
+          // Glowing crimson visor eye
+          ctx.fillStyle = isChase ? '#ff4d6a' : '#ff2a4b';
+          ctx.beginPath();
+          ctx.arc(st.radius * 0.42, 0, 4.5, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.restore();
+        }
+
+        // 9. Player
+        {
+          const pl = state.player;
+          ctx.save();
+          ctx.translate(pl.x, pl.y);
+          ctx.rotate(pl.angle);
+
+          // Soft cyan core glow
+          const pGrad = ctx.createRadialGradient(0, 0, 2, 0, 0, 22);
+          pGrad.addColorStop(0, 'rgba(0, 240, 255, 0.35)');
+          pGrad.addColorStop(1, 'rgba(0, 240, 255, 0)');
+          ctx.fillStyle = pGrad;
+          ctx.beginPath();
+          ctx.arc(0, 0, 22, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Player silhouette
+          ctx.fillStyle = '#091820';
+          ctx.strokeStyle = '#00f0ff';
+          ctx.lineWidth = 2.2;
+          ctx.beginPath();
+          ctx.arc(0, 0, pl.radius, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+
+          // Flashlight emitter front indicator
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          ctx.arc(pl.radius * 0.6, 0, 3.2, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.restore();
+        }
+
+        ctx.restore(); // End world-space transform
+
+        // =====================================================================
+        // 10. RAYCASTED LINE-OF-SIGHT FOG OF WAR & DYNAMIC FLASHLIGHT
+        // =====================================================================
+        renderLighting(camOffsetX, camOffsetY, preset, timeSec);
+
+        // =====================================================================
+        // 11. DANGER VIGNETTE PULSE & CHASE TENSION OVERLAY
+        // =====================================================================
+        const distToStalker = Math.hypot(state.player.x - state.stalker.x, state.player.y - state.stalker.y);
+        const dangerRatio = Math.max(0, 1 - distToStalker / 320);
+        if (dangerRatio > 0.05 || state.stalker.aiState === 'CHASE') {
+          const pulse = 0.55 + 0.45 * Math.sin(timeSec * (state.stalker.aiState === 'CHASE' ? 11 : 5));
+          const alpha = (state.stalker.aiState === 'CHASE' ? 0.36 : 0.22) * Math.max(0.35, dangerRatio) * pulse;
+          const vig = ctx.createRadialGradient(viewW / 2, viewH / 2, viewH * 0.28, viewW / 2, viewH / 2, Math.max(viewW, viewH) * 0.72);
+          vig.addColorStop(0, 'rgba(255, 42, 75, 0)');
+          vig.addColorStop(1, `rgba(255, 42, 75, ${alpha})`);
+          ctx.fillStyle = vig;
+          ctx.fillRect(0, 0, viewW, viewH);
+        }
+
+        ctx.restore();
+      }
+
+      function renderLighting(camOffsetX, camOffsetY, preset, timeSec) {
+        const pScreenX = state.player.x + camOffsetX;
+        const pScreenY = state.player.y + camOffsetY;
+        const maxR = preset.flashlightRadius;
+        const ambR = preset.ambientRadius;
+
+        // Cast 140 rays 360° around player using fast grid DDA to build exact LOS visibility polygon
+        const rayCount = 140;
+        const poly = [];
+        for (let i = 0; i < rayCount; i++) {
+          const ang = (Math.PI * 2 * i) / rayCount;
+          const hit = castRay(state.player.x, state.player.y, ang, maxR);
+          poly.push({ x: hit.x + camOffsetX, y: hit.y + camOffsetY });
+        }
+
+        lightCtx.save();
+        lightCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        lightCtx.clearRect(0, 0, viewW, viewH);
+
+        // Soft ambient facility shadow (keeps corridors clearly visible outside flashlight)
+        lightCtx.fillStyle = `rgba(8, 11, 18, ${preset.ambientDarkness})`;
+        lightCtx.fillRect(0, 0, viewW, viewH);
+
+        lightCtx.save();
+        lightCtx.globalCompositeOperation = 'destination-out';
+
+        // Soft beacon illumination around uncollected keys & exit gate
+        for (const k of state.keys) {
+          if (k.collected) continue;
+          const kx = k.x + camOffsetX;
+          const ky = k.y + camOffsetY;
+          const kGrad = lightCtx.createRadialGradient(kx, ky, 6, kx, ky, 85);
+          kGrad.addColorStop(0, 'rgba(0, 0, 0, 0.9)');
+          kGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+          lightCtx.fillStyle = kGrad;
+          lightCtx.beginPath();
+          lightCtx.arc(kx, ky, 85, 0, Math.PI * 2);
+          lightCtx.fill();
+        }
+        {
+          const ex = state.exit.x + camOffsetX;
+          const ey = state.exit.y + camOffsetY;
+          const eGrad = lightCtx.createRadialGradient(ex, ey, 8, ex, ey, 110);
+          eGrad.addColorStop(0, 'rgba(0, 0, 0, 0.95)');
+          eGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+          lightCtx.fillStyle = eGrad;
+          lightCtx.beginPath();
+          lightCtx.arc(ex, ey, 110, 0, Math.PI * 2);
+          lightCtx.fill();
+        }
+
+        // Clip player's bright light to LOS polygon so walls cast crisp shadows
+        lightCtx.beginPath();
+        poly.forEach((pt, idx) => {
+          if (idx === 0) lightCtx.moveTo(pt.x, pt.y);
+          else lightCtx.lineTo(pt.x, pt.y);
+        });
+        lightCtx.closePath();
+        lightCtx.clip();
+
+        // 1. Wide 360-degree bright player aura
+        const ambGrad = lightCtx.createRadialGradient(pScreenX, pScreenY, 12, pScreenX, pScreenY, ambR);
+        ambGrad.addColorStop(0, 'rgba(0, 0, 0, 1)');
+        ambGrad.addColorStop(0.65, 'rgba(0, 0, 0, 0.92)');
+        ambGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        lightCtx.fillStyle = ambGrad;
+        lightCtx.beginPath();
+        lightCtx.arc(pScreenX, pScreenY, ambR, 0, Math.PI * 2);
+        lightCtx.fill();
+
+        // 2. Wide directional cold cyan flashlight cone
+        const coneGrad = lightCtx.createRadialGradient(pScreenX, pScreenY, 16, pScreenX, pScreenY, maxR);
+        coneGrad.addColorStop(0, 'rgba(0, 0, 0, 1)');
+        coneGrad.addColorStop(0.7, 'rgba(0, 0, 0, 0.94)');
+        coneGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+        lightCtx.fillStyle = coneGrad;
+        lightCtx.beginPath();
+        lightCtx.moveTo(pScreenX, pScreenY);
+        lightCtx.arc(
+          pScreenX,
+          pScreenY,
+          maxR,
+          state.player.angle - preset.flashlightSpread,
+          state.player.angle + preset.flashlightSpread
+        );
+        lightCtx.closePath();
+        lightCtx.fill();
+
+        lightCtx.restore(); // Remove clip & destination-out
+        lightCtx.restore();
+
+        // Composite lighting mask onto main canvas
+        ctx.drawImage(lightCanvas, 0, 0, viewW, viewH);
+
+        // Subtle cyan flashlight atmospheric beam tint inside LOS
+        ctx.save();
+        ctx.beginPath();
+        poly.forEach((pt, idx) => {
+          if (idx === 0) ctx.moveTo(pt.x, pt.y);
+          else ctx.lineTo(pt.x, pt.y);
+        });
+        ctx.closePath();
+        ctx.clip();
+
+        const beamTint = ctx.createRadialGradient(pScreenX, pScreenY, 8, pScreenX, pScreenY, maxR);
+        beamTint.addColorStop(0, 'rgba(0, 240, 255, 0.12)');
+        beamTint.addColorStop(0.65, 'rgba(0, 240, 255, 0.04)');
+        beamTint.addColorStop(1, 'rgba(0, 240, 255, 0)');
+        ctx.fillStyle = beamTint;
+        ctx.beginPath();
+        ctx.moveTo(pScreenX, pScreenY);
+        ctx.arc(
+          pScreenX,
+          pScreenY,
+          maxR,
+          state.player.angle - preset.flashlightSpread,
+          state.player.angle + preset.flashlightSpread
+        );
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+
+        // Eerie crimson bleed if The Warden is dangerously close (even behind walls during chase)
+        const sScreenX = state.stalker.x + camOffsetX;
+        const sScreenY = state.stalker.y + camOffsetY;
+        const sDist = Math.hypot(state.player.x - state.stalker.x, state.player.y - state.stalker.y);
+        if (sDist < 260 && state.stalker.aiState === 'CHASE') {
+          const glowAlpha = (1 - sDist / 260) * (0.28 + 0.1 * Math.sin(timeSec * 12));
+          const redBleed = ctx.createRadialGradient(sScreenX, sScreenY, 4, sScreenX, sScreenY, 62);
+          redBleed.addColorStop(0, `rgba(255, 42, 75, ${glowAlpha})`);
+          redBleed.addColorStop(1, 'rgba(255, 42, 75, 0)');
+          ctx.fillStyle = redBleed;
+          ctx.beginPath();
+          ctx.arc(sScreenX, sScreenY, 62, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      /* =========================================================================
+         11. INPUT HANDLERS (KEYBOARD, MOUSE AIM, TOUCH CONTROLS, BUTTONS)
+         ========================================================================= */
+      const keyMap = {
+        KeyW: 'up',
+        ArrowUp: 'up',
+        KeyS: 'down',
+        ArrowDown: 'down',
+        KeyA: 'left',
+        ArrowLeft: 'left',
+        KeyD: 'right',
+        ArrowRight: 'right',
+        ShiftLeft: 'sprint',
+        ShiftRight: 'sprint'
+      };
+
+      window.addEventListener('keydown', (e) => {
+        if (e.code === 'Escape' || e.code === 'KeyP') {
+          if (state.mode === 'PLAYING') {
+            setOverlayState('PAUSED');
+          } else if (state.mode === 'PAUSED') {
+            setOverlayState('PLAYING');
+          }
+          return;
+        }
+
+        if (e.code === 'Enter' || e.code === 'Space') {
+          if (state.mode === 'TITLE') {
+            e.preventDefault();
+            startNewRun();
+            return;
+          }
+          if (state.mode === 'WIN') {
+            e.preventDefault();
+            advanceNextSector();
+            return;
+          }
+          if (state.mode === 'GAMEOVER') {
+            e.preventDefault();
+            startNewRun();
+            return;
+          }
+        }
+
+        const action = keyMap[e.code];
+        if (action) {
+          if (e.code.startsWith('Arrow')) e.preventDefault();
+          input[action] = true;
+          sound.init();
+          if (action !== 'sprint') {
+            // Let movement steer flashlight naturally unless pointer moves again
+            state.pointerAim.active = false;
+          }
+        }
+      });
+
+      window.addEventListener('keyup', (e) => {
+        const action = keyMap[e.code];
+        if (action) {
+          input[action] = false;
+        }
+      });
+
+      window.addEventListener('blur', () => {
+        input.up = input.down = input.left = input.right = input.sprint = false;
+      });
+
+      canvas.addEventListener('mousemove', (e) => {
+        if (state.mode !== 'PLAYING') return;
+        const rect = canvas.getBoundingClientRect();
+        state.pointerAim.active = true;
+        state.pointerAim.screenX = e.clientX - rect.left;
+        state.pointerAim.screenY = e.clientY - rect.top;
+      });
+
+      // Touch & click D-pad bindings
+      document.querySelectorAll('.touch-btn[data-dir]').forEach((btn) => {
+        const dir = btn.dataset.dir;
+        const press = (ev) => {
+          ev.preventDefault();
+          sound.init();
+          input[dir] = true;
+          state.pointerAim.active = false;
+          btn.classList.add('pressed');
+        };
+        const release = (ev) => {
+          ev.preventDefault();
+          input[dir] = false;
+          btn.classList.remove('pressed');
+        };
+        btn.addEventListener('pointerdown', press);
+        btn.addEventListener('pointerup', release);
+        btn.addEventListener('pointercancel', release);
+        btn.addEventListener('pointerleave', release);
+      });
+
+      const touchSprintBtn = document.getElementById('touchSprintBtn');
+      const sprintPress = (ev) => {
+        ev.preventDefault();
+        sound.init();
+        input.sprint = true;
+        touchSprintBtn.classList.add('pressed');
+      };
+      const sprintRelease = (ev) => {
+        ev.preventDefault();
+        input.sprint = false;
+        touchSprintBtn.classList.remove('pressed');
+      };
+      touchSprintBtn.addEventListener('pointerdown', sprintPress);
+      touchSprintBtn.addEventListener('pointerup', sprintRelease);
+      touchSprintBtn.addEventListener('pointercancel', sprintRelease);
+      touchSprintBtn.addEventListener('pointerleave', sprintRelease);
+
+      // Difficulty selector
+      document.querySelectorAll('.seg-btn[data-diff]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          state.difficulty = btn.dataset.diff;
+          document.querySelectorAll('.seg-btn[data-diff]').forEach((b) => {
+            b.setAttribute('aria-pressed', b === btn ? 'true' : 'false');
+          });
+        });
+      });
+
+      // UI Buttons
+      document.getElementById('playBtn').addEventListener('click', startNewRun);
+      document.getElementById('nextSectorBtn').addEventListener('click', advanceNextSector);
+      document.getElementById('retryBtn').addEventListener('click', startNewRun);
+      document.getElementById('resumeBtn').addEventListener('click', () => setOverlayState('PLAYING'));
+      document.getElementById('pauseBtn').addEventListener('click', () => {
+        setOverlayState(state.mode === 'PAUSED' ? 'PLAYING' : 'PAUSED');
+      });
+
+      function returnToMenu() {
+        setOverlayState('TITLE');
+        initSector(1);
+      }
+
+      document.getElementById('quitToMenuBtn').addEventListener('click', returnToMenu);
+      document.getElementById('gameOverMenuBtn').addEventListener('click', returnToMenu);
+
+      const muteBtn = document.getElementById('muteBtn');
+      muteBtn.addEventListener('click', () => {
+        sound.init();
+        const nextMuted = !sound.muted;
+        sound.setMuted(nextMuted);
+        muteBtn.setAttribute('aria-pressed', String(nextMuted));
+        muteBtn.textContent = nextMuted ? 'Muted' : 'Sound On';
+      });
+
+      document.getElementById('touchToggleBtn').addEventListener('click', () => {
+        state.touchForced = !state.touchForced;
+        updateTouchVisibility();
+      });
+
+      /* =========================================================================
+         12. MAIN RAF LOOP (DELTA-TIME CAPPED)
+         ========================================================================= */
+      initSector(1);
+      let lastTime = performance.now();
+
+      function frame(now) {
+        const rawDt = (now - lastTime) * 0.001;
+        lastTime = now;
+        const dt = Math.min(rawDt, 0.05);
+
+        update(dt);
+        render(now);
+        requestAnimationFrame(frame);
+      }
+
+      requestAnimationFrame(frame);
+    })();
+  </script>
+</body>
+</html>

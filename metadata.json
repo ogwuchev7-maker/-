@@ -1,0 +1,6 @@
+{
+  "name": "NO ESCAPE",
+  "description": "A neon-noir HTML5 Canvas survival-horror maze game with procedural mazes, dynamic line-of-sight lighting, shifting walls, and an adaptive stalker AI.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
